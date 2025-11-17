@@ -52,9 +52,9 @@ energy_companies_count <- 15   # count of energy tickers in your tickers vector
 energy <- paste0(tickers[1:energy_companies_count], ".Adjusted")
 
 # Create mining vector with ".Adjusted" appended
-mining <- paste0(tickers[(n_energy+1):length(tickers)], ".Adjusted")
+mining <- paste0(tickers[(energy_companies_count+1):length(tickers)], ".Adjusted")
 
-#filtering energy and mining vectiors tio only include those that are in the all_prices xts object
+#filtering energy and mining vectors to only include those that are in the all_prices xts object
 energy <- energy[energy %in% colnames(all_prices)]
 mining <- mining[mining %in% colnames(all_prices)]
 
@@ -72,7 +72,9 @@ lines(mining_mean, col="blue")
 legend("topright", legend=c("Energy", "Mining"), col=c("red","blue"), lty=1)
 
 
-#TRIAL 1
+# TRIAL 1
+# As of now, DO NOT RUN Trial 1 and instead RUN TRIAL 2. I did not remove it from the file just in case we 
+# need it for any reason in the future.
 
 cor(energy_mean, mining_mean)
 
@@ -103,7 +105,7 @@ comm <- cluster_louvain(g)
 
 cor(energy_mean, mining_mean)
 
-cor_mat <- cor(coredata(returns), use="pairwise.complete.obs")
+cor_mat <- cor(returns, use="pairwise.complete.obs")
 threshold <- 0.3
 adj <- (abs(cor_mat) > threshold) * cor_mat  # weight = corr (or 1)
 g <- graph_from_adjacency_matrix(adj, mode="undirected", weighted=TRUE, diag=FALSE)
@@ -119,6 +121,55 @@ plot(g,
 
 degree_of_nodes <- degree(g)
 degree_of_nodes
+V(g)$degree <- degree_of_nodes
 
 eigenvector_centrality <- eigen_centrality(g)$vector
 eigenvector_centrality
+V(g)$eigenvector_centrality <- eigenvector_centrality
+
+V(g)$sector
+vertex_attr(g)
+
+nodes_with_attributes <- as.data.frame(vertex_attr(g))
+nodes_with_attributes
+
+nodes_eigenvector_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$eigenvector_centrality),]
+nodes_eigenvector_centrality_descending
+
+cor_mat
+correlation_df <- as.data.frame(as.table(cor_mat))
+correlation_df
+correlation
+correlation_df <- correlation_df[correlation_df$Var1 < correlation_df$Var2, ]
+correlation_df
+
+# results storing the details of each node, including the same sector and opposite sector degree of each
+# node
+results <- data.frame( node = V(g)$name, sector = V(g)$sector, node_degree = degree(g), 
+                       same_sector_degree = integer(vcount(g)), 
+                       opposite_sector_degree = integer(vcount(g)))
+
+for(i in seq_len(vcount(g)))
+{
+  #current node is v 
+  v <- V(g)[i]
+  neighbours <- neighbors(g, v) # neighbours of v in g
+  
+  v_sector <- V(g)$sector[v] # sector of current node v
+  
+  neighbours_sectors <- V(g)$sector[neighbours] # sectors of neighbours
+  
+  same_sector_neighbours_degree <- sum(neighbours_sectors == v_sector)
+  opposite_sector_neighbours_degree <- sum(neighbours_sectors != v_sector)
+  
+  results$same_sector_degree[i] <- same_sector_neighbours_degree
+  results$opposite_sector_degree[i] <- opposite_sector_neighbours_degree
+  
+}
+
+# printing results. notice how some of the nodes have higher degree in the opposite sector compared to 
+# their own sector.
+results
+
+
+
