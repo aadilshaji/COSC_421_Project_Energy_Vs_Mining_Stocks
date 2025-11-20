@@ -172,4 +172,83 @@ for(i in seq_len(vcount(g)))
 results
 
 
+# ============================================
+# Question 4: remove overall market movement
+# ============================================
+
+# Step 1. get TSX Composite index as the market factor
+mkt_data <- getSymbols("^GSPTSE",
+                       src = "yahoo",
+                       auto.assign = FALSE,
+                       from = "2010-01-01")
+
+mkt_prices <- Ad(mkt_data)
+mkt_ret <- na.omit(Return.calculate(mkt_prices))
+
+# align dates between stock returns and market returns
+common_dates <- intersect(index(returns), index(mkt_ret))
+returns_aligned <- returns[common_dates, ]
+mkt_ret_aligned <- mkt_ret[common_dates, 1]
+
+# Step 2. regress each stock on the market and keep residuals
+resid_mat <- matrix(NA_real_,
+                    nrow = nrow(returns_aligned),
+                    ncol = ncol(returns_aligned))
+
+colnames(resid_mat) <- colnames(returns_aligned)
+rownames(resid_mat) <- common_dates
+
+for (j in seq_len(ncol(returns_aligned))) {
+  y <- as.numeric(returns_aligned[, j])
+  x <- as.numeric(mkt_ret_aligned)
+  
+  fit <- lm(y ~ x)        # return_i = alpha + beta * market + error
+  resid_mat[, j] <- residuals(fit)   # store error (idiosyncratic return)
+}
+
+resid_xts <- xts::xts(resid_mat, order.by = common_dates)
+
+# Step 3. build a new correlation network from residuals
+cor_resid <- cor(resid_xts, use = "pairwise.complete.obs")
+
+adj_resid <- (abs(cor_resid) > threshold) * cor_resid
+
+g_resid <- graph_from_adjacency_matrix(adj_resid,
+                                       mode = "undirected",
+                                       weighted = TRUE,
+                                       diag = FALSE)
+
+V(g_resid)$sector <- ifelse(names(V(g_resid)) %in% energy,
+                            "energy", "mining")
+V(g_resid)$color <- ifelse(V(g_resid)$sector == "energy",
+                           "tomato", "skyblue")
+
+# Step 4. compare original and market neutral networks
+par(mfrow = c(1, 2))
+
+plot(g,
+     vertex.label.cex = 0.6,
+     vertex.label.color = "black",
+     layout = layout_with_fr,
+     main = "Original returns network")
+
+plot(g_resid,
+     vertex.label.cex = 0.6,
+     vertex.label.color = "black",
+     layout = layout_with_fr,
+     main = "Network after removing market")
+
+par(mfrow = c(1, 1))
+
+cat("Original edges:", gsize(g), "\n")
+cat("Residual edges:", gsize(g_resid), "\n")
+
+cat("Original average degree:", mean(degree(g)), "\n")
+cat("Residual average degree:", mean(degree(g_resid)), "\n")
+
+mod_orig  <- cluster_louvain(g)
+mod_resid <- cluster_louvain(g_resid)
+
+cat("Original modularity:", modularity(mod_orig), "\n")
+cat("Residual modularity:", modularity(mod_resid), "\n")
 
