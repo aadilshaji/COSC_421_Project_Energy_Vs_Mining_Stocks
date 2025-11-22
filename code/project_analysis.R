@@ -171,6 +171,70 @@ for(i in seq_len(vcount(g)))
 # their own sector.
 results
 
+# ===================================================
+# Question 2: Has the correlation changed over time?
+# ===================================================
+
+# 1. Define time periods (you can tweak these dates if you want)
+periods <- list(
+  period1 = c("2010-01-01", "2014-12-31"),
+  period2 = c("2015-01-01", "2019-12-31"),
+  period3 = c("2020-01-01", "2025-12-31")  # will just stop at last available date
+)
+
+# helper function to compute sector–sector correlation in one period
+sector_corr_in_period <- function(start_date, end_date) {
+  # subset returns for this window
+  sub_ret <- returns[paste0(start_date, "/", end_date)]
+  
+  # if there are not enough rows, return NA
+  if (nrow(sub_ret) < 10) return(NA_real_)
+  
+  # average daily returns for each sector in this window
+  energy_mean_p <- xts(rowMeans(sub_ret[, energy], na.rm = TRUE),
+                       order.by = index(sub_ret))
+  mining_mean_p <- xts(rowMeans(sub_ret[, mining], na.rm = TRUE),
+                       order.by = index(sub_ret))
+  
+  # correlation between sector averages
+  as.numeric(cor(energy_mean_p, mining_mean_p, use = "pairwise.complete.obs"))
+}
+
+# 2. loop over periods and compute correlations
+corr_results <- data.frame(
+  period = character(),
+  start = character(),
+  end = character(),
+  energy_mining_corr = numeric(),
+  stringsAsFactors = FALSE
+)
+
+for (nm in names(periods)) {
+  start_date <- periods[[nm]][1]
+  end_date   <- periods[[nm]][2]
+  corr_value <- sector_corr_in_period(start_date, end_date)
+  
+  corr_results <- rbind(
+    corr_results,
+    data.frame(
+      period = nm,
+      start = start_date,
+      end = end_date,
+      energy_mining_corr = corr_value,
+      stringsAsFactors = FALSE
+    )
+  )
+}
+
+corr_results
+
+barplot(
+  corr_results$energy_mining_corr,
+  names.arg = corr_results$period,
+  main = "Energy–Mining Correlation Across Periods",
+  ylab = "Correlation",
+  xlab = "Period"
+)
 
 # ============================================
 # Question 4: remove overall market movement
