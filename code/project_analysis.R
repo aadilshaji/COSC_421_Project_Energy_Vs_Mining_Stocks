@@ -179,9 +179,45 @@ results
 periods <- list(
   period1 = c("2010-01-01", "2014-12-31"),
   period2 = c("2015-01-01", "2019-12-31"),
-  period3 = c("2020-01-01", "2025-12-31")  # will just stop at last available date
+  period3 = c("2020-01-01", "2025-12-31")
+)
+avg_pairwise_corr <- data.frame(
+  period = character(),
+  start = character(),
+  end = character(),
+  avg_energy_mining_corr = numeric(),
+  stringsAsFactors = FALSE
 )
 
+for (nm in names(periods)) {
+  start_date <- periods[[nm]][1]
+  end_date   <- periods[[nm]][2]
+  
+  # subset returns to this window
+  sub_ret <- returns[paste0(start_date, "/", end_date)]
+  
+  if (nrow(sub_ret) < 10) next  # skip if too few days
+  
+  # full correlation matrix for this window
+  cm <- cor(sub_ret, use = "pairwise.complete.obs")
+  
+  # all energy × mining pairwise correlations
+  em_corrs <- cm[energy, mining, drop = FALSE]
+  
+  # average of those correlations
+  avg_val <- mean(em_corrs, na.rm = TRUE)
+  
+  avg_pairwise_corr <- rbind(
+    avg_pairwise_corr,
+    data.frame(
+      period = nm,
+      start = start_date,
+      end = end_date,
+      avg_energy_mining_corr = avg_val,
+      stringsAsFactors = FALSE
+    )
+  )
+}
 # helper function to compute sector–sector correlation in one period
 sector_corr_in_period <- function(start_date, end_date) {
   # subset returns for this window
@@ -227,14 +263,7 @@ for (nm in names(periods)) {
 }
 
 corr_results
-
-barplot(
-  corr_results$energy_mining_corr,
-  names.arg = corr_results$period,
-  main = "Energy–Mining Correlation Across Periods",
-  ylab = "Correlation",
-  xlab = "Period"
-)
+avg_pairwise_corr
 
 # ============================================
 # Question 4: remove overall market movement
