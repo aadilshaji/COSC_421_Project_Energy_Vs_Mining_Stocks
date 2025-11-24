@@ -120,31 +120,62 @@ plot(g,
      main = "Energy vs Mining Stock Correlation Network")
 
 degree_of_nodes <- degree(g)
-degree_of_nodes
 V(g)$degree <- degree_of_nodes
+cat("Degree of nodes: ", degree_of_nodes)
+
 
 eigenvector_centrality <- eigen_centrality(g)$vector
-eigenvector_centrality
+cat("Eigenvector centrality of nodes: ", eigenvector_centrality)
 V(g)$eigenvector_centrality <- eigenvector_centrality
 
 V(g)$sector
 vertex_attr(g)
 
+#nodes with all attributes so far
 nodes_with_attributes <- as.data.frame(vertex_attr(g))
 nodes_with_attributes
 
+# eigenvector centrality of nodes in descending order
 nodes_eigenvector_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$eigenvector_centrality),]
 nodes_eigenvector_centrality_descending
 
+#CNQ, WPM, PAAS, SU, and CVE have the highest eigenvector centralities.
+
+# degree of nodes in descending order
+nodes_degree_descending <- nodes_with_attributes[order(-nodes_with_attributes$degree),]
+nodes_degree_descending
+
+#SU, CNQ, CVE, IMO, and VET have the highest degrees, each with 15.
+
+#CNQ, SU, and CVE are part of both top 5 of eigenvector centrality and degree. This is a key finding.
+
 cor_mat
-correlation_df <- as.data.frame(as.table(cor_mat))
+correlation_df <- as.data.frame(as.table(cor_mat), stringsAsFactors = FALSE)
+
 correlation_df
-correlation
-correlation_df <- correlation_df[correlation_df$Var1 < correlation_df$Var2, ]
+#dropping the self correlations of companies
+correlation_df <- correlation_df[correlation_df$Var1 != correlation_df$Var2, ]
+
+#removing repeat pairs of same 2 nodes
+correlation_df <- correlation_df[apply(correlation_df, 1, function(node) node[1] < node[2]), ]
+
+#removing correlations = NA
+correlation_df <- correlation_df[!is.na(correlation_df$Freq), ]
+
 correlation_df
+
+# Below code determines the degree each node has for nodes of the same sector and opposite sector
+# This will help us in answering our 1st research question, do energy companies stocks affect that of 
+# mining companies and also some insight for the third question, how interconnected are the 2 sectors and 
+# which companies are most influential
 
 # results storing the details of each node, including the same sector and opposite sector degree of each
 # node
+
+# ==========================================================================================
+# Question 1 - In Canada, do energy stocks significantly impact mining stocks or vice versa?
+# ==========================================================================================
+
 results <- data.frame( node = V(g)$name, sector = V(g)$sector, node_degree = degree(g), 
                        same_sector_degree = integer(vcount(g)), 
                        opposite_sector_degree = integer(vcount(g)))
@@ -170,6 +201,10 @@ for(i in seq_len(vcount(g)))
 # printing results. notice how some of the nodes have higher degree in the opposite sector compared to 
 # their own sector.
 results
+
+# The energy companies which have a higher degree in the opposite sector are: FNV (0-10), FM (5-9), 
+# LUN (5-8), CCO (2-5), and CS (3-6). The numbers in the brackets are the degrees for same sector and 
+# opposite sectors respectively.
 
 # ===================================================
 # Question 2: Has the correlation changed over time?
