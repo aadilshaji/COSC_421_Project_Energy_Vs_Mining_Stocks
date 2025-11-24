@@ -123,10 +123,17 @@ degree_of_nodes <- degree(g)
 V(g)$degree <- degree_of_nodes
 cat("Degree of nodes: ", degree_of_nodes)
 
-
+# computing eigenvector centrality and storing it as an attribute
 eigenvector_centrality <- eigen_centrality(g)$vector
 cat("Eigenvector centrality of nodes: ", eigenvector_centrality)
 V(g)$eigenvector_centrality <- eigenvector_centrality
+
+# Betweenness centrality of the nodes in descending order
+betweenness_centrality <- betweenness(g)
+V(g)$betweenness_centrality <- betweenness_centrality
+
+closeness_centrality <- closeness(g)
+V(g)$closeness_centrality <- closeness_centrality
 
 V(g)$sector
 vertex_attr(g)
@@ -139,7 +146,8 @@ nodes_with_attributes
 nodes_eigenvector_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$eigenvector_centrality),]
 nodes_eigenvector_centrality_descending
 
-#CNQ, WPM, PAAS, SU, and CVE have the highest eigenvector centralities.
+# CNQ, WPM, PAAS, SU, and CVE have the highest eigenvector centralities which could indicate that they are 
+# some of the most influential companies in this network.
 
 # degree of nodes in descending order
 nodes_degree_descending <- nodes_with_attributes[order(-nodes_with_attributes$degree),]
@@ -148,6 +156,30 @@ nodes_degree_descending
 #SU, CNQ, CVE, IMO, and VET have the highest degrees, each with 15.
 
 #CNQ, SU, and CVE are part of both top 5 of eigenvector centrality and degree. This is a key finding.
+
+nodes_betweenness_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$betweenness_centrality),]
+nodes_betweenness_centrality_descending
+
+#PAAS, CS, LUN, FM, and BIR have the highest betweennness centralities.
+
+nodes_closeness_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$closeness_centrality),]
+nodes_closeness_centrality_descending
+
+#FM, LUN, PAAS, WPM, and CS have the highest closeness centralities.
+
+adjacency_matrix_edge_existing_or_not <- abs(cor_mat) > threshold
+energy_to_mining_edges <- sum(adjacency_matrix_edge_existing_or_not[energy, mining])
+total_possible_energy_to_mining_edges <- length(energy) * length(mining)
+
+energy_to_mining_edges
+total_possible_energy_to_mining_edges
+
+edge_density_between_sectors <- energy_to_mining_edges/total_possible_energy_to_mining_edges
+edge_density_between_sectors
+
+# So on a scale of 0 to 1, only 0.1948718 of edges between any energy company with any mining company 
+# exists. So this means that around 19.5% of the possible strong correlation edges between 2 companies 
+# of opposite sectors exist.
 
 cor_mat
 correlation_df <- as.data.frame(as.table(cor_mat), stringsAsFactors = FALSE)
