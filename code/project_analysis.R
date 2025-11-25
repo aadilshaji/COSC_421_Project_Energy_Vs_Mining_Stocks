@@ -7,6 +7,7 @@ install.packages("PerformanceAnalytics")
 library(igraph)
 library(quantmod)
 library(PerformanceAnalytics)
+library(dplyr)
 
 tickers <- c(
   # Energy
@@ -120,31 +121,125 @@ plot(g,
      main = "Energy vs Mining Stock Correlation Network")
 
 degree_of_nodes <- degree(g)
-degree_of_nodes
 V(g)$degree <- degree_of_nodes
+cat("Degree of nodes: ", degree_of_nodes)
 
+# computing eigenvector centrality and storing it as an attribute
 eigenvector_centrality <- eigen_centrality(g)$vector
-eigenvector_centrality
+cat("Eigenvector centrality of nodes: ", eigenvector_centrality)
 V(g)$eigenvector_centrality <- eigenvector_centrality
+
+# Betweenness centrality of the nodes in descending order
+betweenness_centrality <- betweenness(g)
+V(g)$betweenness_centrality <- betweenness_centrality
+
+closeness_centrality <- closeness(g)
+V(g)$closeness_centrality <- closeness_centrality
 
 V(g)$sector
 vertex_attr(g)
 
+#nodes with all attributes so far
 nodes_with_attributes <- as.data.frame(vertex_attr(g))
 nodes_with_attributes
 
+# eigenvector centrality of nodes in descending order
 nodes_eigenvector_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$eigenvector_centrality),]
 nodes_eigenvector_centrality_descending
 
+# CNQ, WPM, PAAS, SU, and CVE have the highest eigenvector centralities which could indicate that they are 
+# some of the most influential companies in this network.
+
+# degree of nodes in descending order
+nodes_degree_descending <- nodes_with_attributes[order(-nodes_with_attributes$degree),]
+nodes_degree_descending
+
+#SU, CNQ, CVE, IMO, and VET have the highest degrees, each with 15.
+
+#CNQ, SU, and CVE are part of both top 5 of eigenvector centrality and degree. This is a key finding.
+
+nodes_betweenness_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$betweenness_centrality),]
+nodes_betweenness_centrality_descending
+
+#PAAS, CS, LUN, FM, and BIR have the highest betweennness centralities.
+
+nodes_closeness_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$closeness_centrality),]
+nodes_closeness_centrality_descending
+
+#FM, LUN, PAAS, WPM, and CS have the highest closeness centralities.
+
+adjacency_matrix_edge_existing_or_not <- abs(cor_mat) > threshold
+energy_to_mining_edges <- sum(adjacency_matrix_edge_existing_or_not[energy, mining])
+total_possible_energy_to_mining_edges <- length(energy) * length(mining)
+
+energy_to_mining_edges
+total_possible_energy_to_mining_edges
+
+edge_density_between_sectors <- energy_to_mining_edges/total_possible_energy_to_mining_edges
+edge_density_between_sectors
+
+# So on a scale of 0 to 1, only 0.1948718 of edges between any energy company with any mining company 
+# exists. So this means that around 19.5% of the possible strong correlation edges between 2 companies 
+# of opposite sectors exist.
+
 cor_mat
-correlation_df <- as.data.frame(as.table(cor_mat))
+correlation_df <- as.data.frame(as.table(cor_mat), stringsAsFactors = FALSE)
+colnames(correlation_df)[3] <- "correlation_value"
+
 correlation_df
-correlation
-correlation_df <- correlation_df[correlation_df$Var1 < correlation_df$Var2, ]
+#dropping the self correlations of companies
+correlation_df <- correlation_df[correlation_df$Var1 != correlation_df$Var2, ]
+
+#removing repeat pairs of same 2 nodes
+correlation_df <- correlation_df[apply(correlation_df, 1, function(node) node[1] < node[2]), ]
+
+#removing correlations = NA
+correlation_df <- correlation_df[!is.na(correlation_df$correlation_value), ]
+
 correlation_df
+
+# creating a companies data frame with the company name and the corresponding sector from the graph's 
+# vertices
+companies <- data.frame(
+  company = V(g)$name,
+  sector = V(g)$sector,
+  stringAsFactors = FALSE
+)
+
+correlation_df <- correlation_df %>%
+  left_join(companies %>% select(company, sector), by = c("Var1" = "company")) %>%
+  rename(sector1 = sector) %>%
+  left_join(companies %>% select(company, sector), by = c("Var2" = "company")) %>%
+  rename(sector2 = sector)
+
+energy_and_mining_correlations <- correlation_df %>%
+  filter(
+    (sector1 == "energy" & sector2 == "mining") |
+    (sector1 == "mining" & sector2 == "energy")
+  )
+
+energy_and_mining_correlations <- energy_and_mining_correlations %>%
+  arrange(desc(correlation_value))
+
+energy_and_mining_correlations
+
+# On printing energy_and_mining_correlations in descending order of correlation value, we can see that the
+# top 10 correlations are above 0.5 on the correlation scale of -1 to +1. This is a significant finding as
+# that is a good number of correlations between companies of opposite sectors that is above 0.5 with the
+# highest being 0.72.
+
+# Below code determines the degree each node has for nodes of the same sector and opposite sector
+# This will help us in answering our 1st research question, do energy companies stocks affect that of 
+# mining companies and also some insight for the third question, how interconnected are the 2 sectors and 
+# which companies are most influential
 
 # results storing the details of each node, including the same sector and opposite sector degree of each
 # node
+
+# ==========================================================================================
+# Question 1 - In Canada, do energy stocks significantly impact mining stocks or vice versa?
+# ==========================================================================================
+
 results <- data.frame( node = V(g)$name, sector = V(g)$sector, node_degree = degree(g), 
                        same_sector_degree = integer(vcount(g)), 
                        opposite_sector_degree = integer(vcount(g)))
@@ -170,6 +265,10 @@ for(i in seq_len(vcount(g)))
 # printing results. notice how some of the nodes have higher degree in the opposite sector compared to 
 # their own sector.
 results
+
+# The energy companies which have a higher degree in the opposite sector are: FNV (0-10), FM (5-9), 
+# LUN (5-8), CCO (2-5), and CS (3-6). The numbers in the brackets are the degrees for same sector and 
+# opposite sectors respectively.
 
 # ===================================================
 # Question 2: Has the correlation changed over time?
