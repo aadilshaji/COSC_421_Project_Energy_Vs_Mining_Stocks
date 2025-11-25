@@ -7,6 +7,7 @@ install.packages("PerformanceAnalytics")
 library(igraph)
 library(quantmod)
 library(PerformanceAnalytics)
+library(dplyr)
 
 tickers <- c(
   # Energy
@@ -183,6 +184,7 @@ edge_density_between_sectors
 
 cor_mat
 correlation_df <- as.data.frame(as.table(cor_mat), stringsAsFactors = FALSE)
+colnames(correlation_df)[3] <- "correlation_value"
 
 correlation_df
 #dropping the self correlations of companies
@@ -192,9 +194,39 @@ correlation_df <- correlation_df[correlation_df$Var1 != correlation_df$Var2, ]
 correlation_df <- correlation_df[apply(correlation_df, 1, function(node) node[1] < node[2]), ]
 
 #removing correlations = NA
-correlation_df <- correlation_df[!is.na(correlation_df$Freq), ]
+correlation_df <- correlation_df[!is.na(correlation_df$correlation_value), ]
 
 correlation_df
+
+# creating a companies data frame with the company name and the corresponding sector from the graph's 
+# vertices
+companies <- data.frame(
+  company = V(g)$name,
+  sector = V(g)$sector,
+  stringAsFactors = FALSE
+)
+
+correlation_df <- correlation_df %>%
+  left_join(companies %>% select(company, sector), by = c("Var1" = "company")) %>%
+  rename(sector1 = sector) %>%
+  left_join(companies %>% select(company, sector), by = c("Var2" = "company")) %>%
+  rename(sector2 = sector)
+
+energy_and_mining_correlations <- correlation_df %>%
+  filter(
+    (sector1 == "energy" & sector2 == "mining") |
+    (sector1 == "mining" & sector2 == "energy")
+  )
+
+energy_and_mining_correlations <- energy_and_mining_correlations %>%
+  arrange(desc(correlation_value))
+
+energy_and_mining_correlations
+
+# On printing energy_and_mining_correlations in descending order of correlation value, we can see that the
+# top 10 correlations are above 0.5 on the correlation scale of -1 to +1. This is a significant finding as
+# that is a good number of correlations between companies of opposite sectors that is above 0.5 with the
+# highest being 0.72.
 
 # Below code determines the degree each node has for nodes of the same sector and opposite sector
 # This will help us in answering our 1st research question, do energy companies stocks affect that of 
