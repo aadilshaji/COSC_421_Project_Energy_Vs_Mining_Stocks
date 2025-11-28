@@ -26,6 +26,10 @@ safeGet <- function(t) {
            error=function(e) NULL)
 }
 results <- lapply(tickers, safeGet)
+
+# Pre-processing of data
+
+# removing data which are null
 available <- tickers[!sapply(results, is.null)]
 available
 
@@ -104,10 +108,15 @@ comm <- cluster_louvain(g)
 
 #TRIAL 2
 
+# Creating correlation matrix and graph based on it
+
 cor(energy_mean, mining_mean)
 
 cor_mat <- cor(returns, use="pairwise.complete.obs")
 threshold <- 0.3
+
+# adjacency matrix based on correlation matrix with a threshold of 0.3 for an edge to exist between the 
+# 2 nodes
 adj <- (abs(cor_mat) > threshold) * cor_mat  # weight = corr (or 1)
 g <- graph_from_adjacency_matrix(adj, mode="undirected", weighted=TRUE, diag=FALSE)
 V(g)
@@ -167,66 +176,6 @@ nodes_closeness_centrality_descending <- nodes_with_attributes[order(-nodes_with
 nodes_closeness_centrality_descending
 
 #FM, LUN, PAAS, WPM, and CS have the highest closeness centralities.
-
-adjacency_matrix_edge_existing_or_not <- abs(cor_mat) > threshold
-energy_to_mining_edges <- sum(adjacency_matrix_edge_existing_or_not[energy, mining])
-total_possible_energy_to_mining_edges <- length(energy) * length(mining)
-
-energy_to_mining_edges
-total_possible_energy_to_mining_edges
-
-edge_density_between_sectors <- energy_to_mining_edges/total_possible_energy_to_mining_edges
-edge_density_between_sectors
-
-# So on a scale of 0 to 1, only 0.1948718 of edges between any energy company with any mining company 
-# exists. So this means that around 19.5% of the possible strong correlation edges between 2 companies 
-# of opposite sectors exist.
-
-cor_mat
-correlation_df <- as.data.frame(as.table(cor_mat), stringsAsFactors = FALSE)
-colnames(correlation_df)[3] <- "correlation_value"
-
-correlation_df
-#dropping the self correlations of companies
-correlation_df <- correlation_df[correlation_df$Var1 != correlation_df$Var2, ]
-
-#removing repeat pairs of same 2 nodes
-correlation_df <- correlation_df[apply(correlation_df, 1, function(node) node[1] < node[2]), ]
-
-#removing correlations = NA
-correlation_df <- correlation_df[!is.na(correlation_df$correlation_value), ]
-
-correlation_df
-
-# creating a companies data frame with the company name and the corresponding sector from the graph's 
-# vertices
-companies <- data.frame(
-  company = V(g)$name,
-  sector = V(g)$sector,
-  stringAsFactors = FALSE
-)
-
-correlation_df <- correlation_df %>%
-  left_join(companies %>% select(company, sector), by = c("Var1" = "company")) %>%
-  rename(sector1 = sector) %>%
-  left_join(companies %>% select(company, sector), by = c("Var2" = "company")) %>%
-  rename(sector2 = sector)
-
-energy_and_mining_correlations <- correlation_df %>%
-  filter(
-    (sector1 == "energy" & sector2 == "mining") |
-    (sector1 == "mining" & sector2 == "energy")
-  )
-
-energy_and_mining_correlations <- energy_and_mining_correlations %>%
-  arrange(desc(correlation_value))
-
-energy_and_mining_correlations
-
-# On printing energy_and_mining_correlations in descending order of correlation value, we can see that the
-# top 10 correlations are above 0.5 on the correlation scale of -1 to +1. This is a significant finding as
-# that is a good number of correlations between companies of opposite sectors that is above 0.5 with the
-# highest being 0.72.
 
 # Below code determines the degree each node has for nodes of the same sector and opposite sector
 # This will help us in answering our 1st research question, do energy companies stocks affect that of 
@@ -363,6 +312,71 @@ for (nm in names(periods)) {
 
 corr_results
 avg_pairwise_corr
+
+# =================================================================================================
+# Question 3: How interconnected are Canada's mining and energy companies? Which companies are most
+# connected/influential in the network?
+# =================================================================================================
+
+adjacency_matrix_edge_existing_or_not <- abs(cor_mat) > threshold
+energy_to_mining_edges <- sum(adjacency_matrix_edge_existing_or_not[energy, mining])
+total_possible_energy_to_mining_edges <- length(energy) * length(mining)
+
+energy_to_mining_edges
+total_possible_energy_to_mining_edges
+
+edge_density_between_sectors <- energy_to_mining_edges/total_possible_energy_to_mining_edges
+edge_density_between_sectors
+
+# So on a scale of 0 to 1, only 0.1948718 of edges between any energy company with any mining company 
+# exists. So this means that around 19.5% of the possible strong correlation edges between 2 companies 
+# of opposite sectors exist.
+
+cor_mat
+correlation_df <- as.data.frame(as.table(cor_mat), stringsAsFactors = FALSE)
+colnames(correlation_df)[3] <- "correlation_value"
+
+correlation_df
+#dropping the self correlations of companies
+correlation_df <- correlation_df[correlation_df$Var1 != correlation_df$Var2, ]
+
+#removing repeat pairs of same 2 nodes
+correlation_df <- correlation_df[apply(correlation_df, 1, function(node) node[1] < node[2]), ]
+
+#removing correlations = NA
+correlation_df <- correlation_df[!is.na(correlation_df$correlation_value), ]
+
+correlation_df
+
+# creating a companies data frame with the company name and the corresponding sector from the graph's 
+# vertices
+companies <- data.frame(
+  company = V(g)$name,
+  sector = V(g)$sector,
+  stringAsFactors = FALSE
+)
+
+correlation_df <- correlation_df %>%
+  left_join(companies %>% select(company, sector), by = c("Var1" = "company")) %>%
+  rename(sector1 = sector) %>%
+  left_join(companies %>% select(company, sector), by = c("Var2" = "company")) %>%
+  rename(sector2 = sector)
+
+energy_and_mining_correlations <- correlation_df %>%
+  filter(
+    (sector1 == "energy" & sector2 == "mining") |
+      (sector1 == "mining" & sector2 == "energy")
+  )
+
+energy_and_mining_correlations <- energy_and_mining_correlations %>%
+  arrange(desc(correlation_value))
+
+energy_and_mining_correlations
+
+# On printing energy_and_mining_correlations in descending order of correlation value, we can see that the
+# top 10 correlations are above 0.5 on the correlation scale of -1 to +1. This is a significant finding as
+# that is a good number of correlations between companies of opposite sectors that is above 0.5 with the
+# highest being 0.72.
 
 # ============================================
 # Question 4: remove overall market movement
