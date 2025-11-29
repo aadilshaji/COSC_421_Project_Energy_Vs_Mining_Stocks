@@ -374,12 +374,6 @@ deg_vec <- degree(g)
 avg_degree <- mean(deg_vec)
 cat("Average degree:", avg_degree, "\n")
 
-# Average path length
-# Need a connected graph; use the largest connected component
-comp <- components(g)
-giant_comp_nodes <- which(comp$membership == which.max(comp$csize))
-g_giant <- induced_subgraph(g, vids = giant_comp_nodes)
-
 # Clustering coefficient (transitivity)
 global_clustering_coef <- transitivity(g, type = "global")
 cat("Clustering coefficient:", global_clustering_coef, "\n")
