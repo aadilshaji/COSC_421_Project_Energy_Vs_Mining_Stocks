@@ -378,6 +378,22 @@ energy_and_mining_correlations
 # that is a good number of correlations between companies of opposite sectors that is above 0.5 with the
 # highest being 0.72.
 
+pagerank_centrality <- page.rank(g)$vector
+pagerank_centrality
+
+V(g)$pagerank_centrality <- pagerank_centrality
+
+nodes_with_attributes <- as.data.frame(vertex_attr(g))
+nodes_with_attributes
+
+nodes_pagerank_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$pagerank_centrality),]
+nodes_pagerank_centrality_descending
+
+# The top 5 nodes by pagerank centrality are CNQ, SU, CVE, VET, and IMO. This shows their 
+# importance/influence in the network. The eigenvector CNQ, WPM, PAAS, SU, CVE were the nodes with the 
+# highest eigenvector centrality. So the common nodes in the two lists are CNQ, SU, and CVE. This shows 
+# that they are considered important by two different types of centrality. 
+
 # ============================================
 # Question 4: remove overall market movement
 # ============================================
