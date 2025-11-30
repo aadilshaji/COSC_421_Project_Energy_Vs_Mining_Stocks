@@ -395,7 +395,7 @@ node_stats_ordered <- node_stats[
   order(-node_stats$degree, -node_stats$k_core),
 ]
 
-head(question3_node_stats_ordered, 25)
+head(node_stats_ordered, 25)
 
 # ============================================
 # Question 4: remove overall market movement
