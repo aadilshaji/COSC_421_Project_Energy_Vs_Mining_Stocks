@@ -88,38 +88,6 @@ plot(energy_mean, main="Energy vs Mining Average Returns", col="red")
 lines(mining_mean, col="blue")
 legend("topright", legend=c("Energy", "Mining"), col=c("red","blue"), lty=1)
 
-
-# TRIAL 1
-# As of now, DO NOT RUN Trial 1 and instead RUN TRIAL 2. I did not remove it from the file just in case we 
-# need it for any reason in the future.
-
-cor(energy_mean, mining_mean)
-
-cor_mat <- cor(coredata(returns), use="pairwise.complete.obs")
-adj <- (abs(cor_mat) > 0.5) * cor_mat  # weight = corr (or 1)
-g <- graph_from_adjacency_matrix(adj, mode="undirected", weighted=TRUE, diag=FALSE)
-V(g)
-V(g)$sector <- ifelse(names(V(g)) %in% energy, "energy","mining")
-
-# centralities
-deg <- degree(g)
-deg
-eig <- eigen_centrality(g)$vector
-eig
-betw <- betweenness(g)
-betw
-
-V(g)$color <- ifelse(V(g)$sector == "energy", "tomato", "skyblue")
-plot(g,
-     vertex.label.cex = 0.8,
-     vertex.label.color = "black",
-     layout = layout_with_fr,
-     main = "Energy vs Mining Stock Correlation Network")
-
-comm <- cluster_louvain(g)
-
-#TRIAL 2
-
 # Creating correlation matrix and graph based on it
 
 cor(energy_mean, mining_mean)
@@ -187,6 +155,10 @@ nodes_closeness_centrality_descending
 
 #FM, LUN, PAAS, WPM, and CS have the highest closeness centralities.
 
+# ==========================================================================================
+# Question 1 - In Canada, do energy stocks significantly impact mining stocks or vice versa?
+# ==========================================================================================
+
 # Below code determines the degree each node has for nodes of the same sector and opposite sector
 # This will help us in answering our 1st research question, do energy companies stocks affect that of 
 # mining companies and also some insight for the third question, how interconnected are the 2 sectors and 
@@ -194,10 +166,6 @@ nodes_closeness_centrality_descending
 
 # results storing the details of each node, including the same sector and opposite sector degree of each
 # node
-
-# ==========================================================================================
-# Question 1 - In Canada, do energy stocks significantly impact mining stocks or vice versa?
-# ==========================================================================================
 
 results <- data.frame( node = V(g)$name, sector = V(g)$sector, node_degree = degree(g), 
                        same_sector_degree = integer(vcount(g)), 
@@ -321,11 +289,11 @@ for (nm in names(periods)) {
 }
 
 corr_results
-# correlation results by period: 2010-2014 was 0.5318576, 2015-2019 was 0.3410688, and 2020-2025 was 
-# 0.3803875.
+# correlation results by period: 2010-2014 was 0.5318579, 2015-2019 was 0.3410684, and 2020-2025 was 
+# 0.3803876.
 
 avg_pairwise_corr
-# average pairwise correlation results by period: 2010-2014 was 0.2178981, 2015-2019 was 0.1469825, and 
+# average pairwise correlation results by period: 2010-2014 was 0.2178982, 2015-2019 was 0.1469825, and 
 # 2020-2025 was 0.2126215.
 
 # =================================================================================================
