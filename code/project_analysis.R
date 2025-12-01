@@ -410,11 +410,6 @@ nodes_pagerank_centrality_descending
 # highest eigenvector centrality. So there are no common nodes in the two lists. This shows 
 # that they are separately considered important by two different types of centrality. 
 
-# ============================================================
-# Question 3: How interconnected are Canada’s energy and mining 
-# companies, and which companies are the most connected in the network?
-# ============================================================
-
 # Average degree
 deg_vec <- degree(g)
 avg_degree <- mean(deg_vec)
