@@ -40,6 +40,18 @@ for (t in available) {
   prices[[t]] <- Ad(data)  # Adjusted Close
 }
 
+# remove tickers whose data starts after the date below since most companies have data from that date 
+# onwards and only a few do not.
+cutoff <- as.Date("2010-01-04")
+
+starts <- sapply(prices, function(x) start(x))
+tickers_before_cutoff <- names(starts[as.Date(starts) <= cutoff])
+prices <- prices[tickers_before_cutoff] 
+
+removed_tickers <- setdiff(names(starts), tickers_before_cutoff)
+cat("Removed tickers due to late start:\n")
+print(removed_tickers)
+
 # merging all prices into a big xts object according to the date
 all_prices <- do.call(merge, prices)
 head(all_prices)
@@ -156,7 +168,7 @@ nodes_with_attributes
 nodes_eigenvector_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$eigenvector_centrality),]
 nodes_eigenvector_centrality_descending
 
-# CNQ, WPM, PAAS, SU, and CVE have the highest eigenvector centralities which could indicate that they are 
+# WPM, PAAS, ABX, AEM, and K have the highest eigenvector centralities which could indicate that they are 
 # some of the most influential companies in this network.
 
 # degree of nodes in descending order
@@ -164,8 +176,6 @@ nodes_degree_descending <- nodes_with_attributes[order(-nodes_with_attributes$de
 nodes_degree_descending
 
 #SU, CNQ, CVE, IMO, and VET have the highest degrees, each with 15.
-
-#CNQ, SU, and CVE are part of both top 5 of eigenvector centrality and degree. This is a key finding.
 
 nodes_betweenness_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$betweenness_centrality),]
 nodes_betweenness_centrality_descending
@@ -311,7 +321,12 @@ for (nm in names(periods)) {
 }
 
 corr_results
+# correlation results by period: 2010-2014 was 0.5318576, 2015-2019 was 0.3410688, and 2020-2025 was 
+# 0.3803875.
+
 avg_pairwise_corr
+# average pairwise correlation results by period: 2010-2014 was 0.2178981, 2015-2019 was 0.1469825, and 
+# 2020-2025 was 0.2126215.
 
 # =================================================================================================
 # Question 3: How interconnected are Canada's mining and energy companies? Which companies are most
@@ -328,8 +343,8 @@ total_possible_energy_to_mining_edges
 edge_density_between_sectors <- energy_to_mining_edges/total_possible_energy_to_mining_edges
 edge_density_between_sectors
 
-# So on a scale of 0 to 1, only 0.1948718 of edges between any energy company with any mining company 
-# exists. So this means that around 19.5% of the possible strong correlation edges between 2 companies 
+# So on a scale of 0 to 1, only 0.2087912 of edges between any energy company with any mining company 
+# exists. So this means that around 20.9% of the possible strong correlation edges between 2 companies 
 # of opposite sectors exist.
 
 cor_mat
@@ -362,6 +377,7 @@ correlation_df <- correlation_df %>%
   left_join(companies %>% select(company, sector), by = c("Var2" = "company")) %>%
   rename(sector2 = sector)
 
+# getting only correlations between 2 companies of opposite sectors
 energy_and_mining_correlations <- correlation_df %>%
   filter(
     (sector1 == "energy" & sector2 == "mining") |
@@ -390,9 +406,9 @@ nodes_pagerank_centrality_descending <- nodes_with_attributes[order(-nodes_with_
 nodes_pagerank_centrality_descending
 
 # The top 5 nodes by pagerank centrality are CNQ, SU, CVE, VET, and IMO. This shows their 
-# importance/influence in the network. The eigenvector CNQ, WPM, PAAS, SU, CVE were the nodes with the 
-# highest eigenvector centrality. So the common nodes in the two lists are CNQ, SU, and CVE. This shows 
-# that they are considered important by two different types of centrality. 
+# importance/influence in the network. WPM, PAAS, ABX, AEM, and K were the nodes with the 
+# highest eigenvector centrality. So there are no common nodes in the two lists. This shows 
+# that they are separately considered important by two different types of centrality. 
 
 # ============================================
 # Question 4: remove overall market movement
@@ -407,10 +423,15 @@ mkt_data <- getSymbols("^GSPTSE",
 mkt_prices <- Ad(mkt_data)
 mkt_ret <- na.omit(Return.calculate(mkt_prices))
 
-# align dates between stock returns and market returns
-common_dates <- intersect(index(returns), index(mkt_ret))
-returns_aligned <- returns[common_dates, ]
-mkt_ret_aligned <- mkt_ret[common_dates, 1]
+# Merge returns and market returns, keeping only dates that exist in both
+aligned_data <- merge(returns, mkt_ret, join="inner")  
+
+# Extract returns and market separately
+returns_aligned <- aligned_data[, colnames(returns)]
+mkt_ret_aligned <- aligned_data[, colnames(mkt_ret)]
+
+# Use the row index of returns_aligned as the proper time vector
+aligned_dates <- index(returns_aligned)
 
 # Step 2. regress each stock on the market and keep residuals
 resid_mat <- matrix(NA_real_,
@@ -418,7 +439,6 @@ resid_mat <- matrix(NA_real_,
                     ncol = ncol(returns_aligned))
 
 colnames(resid_mat) <- colnames(returns_aligned)
-rownames(resid_mat) <- common_dates
 
 for (j in seq_len(ncol(returns_aligned))) {
   y <- as.numeric(returns_aligned[, j])
@@ -428,7 +448,7 @@ for (j in seq_len(ncol(returns_aligned))) {
   resid_mat[, j] <- residuals(fit)   # store error (idiosyncratic return)
 }
 
-resid_xts <- xts::xts(resid_mat, order.by = common_dates)
+resid_xts <- xts::xts(resid_mat, order.by = aligned_dates)
 
 # Step 3. build a new correlation network from residuals
 cor_resid <- cor(resid_xts, use = "pairwise.complete.obs")
@@ -465,12 +485,18 @@ par(mfrow = c(1, 1))
 cat("Original edges:", gsize(g), "\n")
 cat("Residual edges:", gsize(g_resid), "\n")
 
+# Original edges = 159, residual edges = 87
+
 cat("Original average degree:", mean(degree(g)), "\n")
 cat("Residual average degree:", mean(degree(g_resid)), "\n")
+
+# Original average degree = 11.77778, residual average degree = 6.444444
 
 mod_orig  <- cluster_louvain(g)
 mod_resid <- cluster_louvain(g_resid)
 
 cat("Original modularity:", modularity(mod_orig), "\n")
 cat("Residual modularity:", modularity(mod_resid), "\n")
+
+# Original modularity = 0.4708674, residual modularity = 0.4441319
 
