@@ -4,10 +4,12 @@
 install.packages("igraph")
 install.packages("quantmod")
 install.packages("PerformanceAnalytics")
+install.packages("gt")
 library(igraph)
 library(quantmod)
 library(PerformanceAnalytics)
 library(dplyr)
+library(gt)
 
 tickers <- c(
   # Energy
@@ -192,6 +194,9 @@ for(i in seq_len(vcount(g)))
 # printing results. notice how some of the nodes have higher degree in the opposite sector compared to 
 # their own sector.
 results
+
+V(g)$same_sector_degree <- results$same_sector_degree
+V(g)$opposite_sector_degree <- results$opposite_sector_degree
 
 # The energy companies which have a higher degree in the opposite sector are: FNV (0-10), FM (5-9), 
 # LUN (5-8), CCO (2-5), and CS (3-6). The numbers in the brackets are the degrees for same sector and 
@@ -496,3 +501,33 @@ cat("Residual modularity:", modularity(mod_resid), "\n")
 
 # Original modularity = 0.4708674, residual modularity = 0.4441319
 
+
+# Overall Results of the Project's analysis
+
+nodes_metrics <- data.frame(
+  Ticker = V(g)$name,
+  Sector = V(g)$sector,
+  Degree = V(g)$degree,
+  SameSectorDegreeCount = V(g)$same_sector_degree,
+  OppositeSectorDegreeCount = V(g)$opposite_sector_degree,
+  EigenvectorCentrality = round(V(g)$eigenvector_centrality, 4),
+  PagerankCentrality = round(V(g)$pagerank_centrality, 4)
+)
+
+gt_table_of_nodes_metrics <- nodes_metrics %>%
+  gt() %>%
+  cols_width(
+   everything() ~ px(120)
+  ) %>%
+  tab_options(
+    table.border.top.style = "solid",
+    table.border.bottom.style = "solid",
+    table_body.hlines.style = "solid",
+    table_body.vlines.style = "solid",
+    table.width = pct(100), 
+    table.font.size = px(10)
+  )
+
+gt_table_of_nodes_metrics
+
+#gtsave(data = gt_table_of_nodes_metrics, filename = "node_metrics_table.png", path = "/path/where/you/want/the/image")
