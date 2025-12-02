@@ -86,9 +86,11 @@ energy_mean <- xts(rowMeans(returns[, energy], na.rm = TRUE), order.by = index(r
 mining_mean <- xts(rowMeans(returns[, mining], na.rm = TRUE), order.by = index(returns))
 
 # plot for energy and mining means
+par(mar = c(5, 4, 4, 6))
 plot(energy_mean, main="Energy vs Mining Average Returns", col="red")
 lines(mining_mean, col="blue")
-legend("topright", legend=c("Energy", "Mining"), col=c("red","blue"), lty=1)
+legend("topright", inset = c(0, 0),
+       legend=c("Energy", "Mining"), col=c("red","blue"), lty=1)
 
 # Creating correlation matrix and graph based on it
 
@@ -108,8 +110,13 @@ V(g)$color <- ifelse(V(g)$sector == "energy", "tomato", "skyblue")
 plot(g,
      vertex.label.cex = 0.8,
      vertex.label.color = "black",
-     layout = layout_with_fr,
+     layout = layout_with_kk,
      main = "Energy vs Mining Stock Correlation Network")
+legend("topright", 
+       legend = c("Energy", "Mining"),
+       col = c("Tomato", "Skyblue"),
+       pch = 19,
+       pt.cex = 1.5)
 
 degree_of_nodes <- degree(g)
 V(g)$degree <- degree_of_nodes
@@ -200,7 +207,8 @@ V(g)$opposite_sector_degree <- results$opposite_sector_degree
 
 # The energy companies which have a higher degree in the opposite sector are: FNV (0-10), FM (5-9), 
 # LUN (5-8), CCO (2-5), and CS (3-6). The numbers in the brackets are the degrees for same sector and 
-# opposite sectors respectively.
+# opposite sectors respectively. Among these 5 nodes, FNV has quite a high eigenvector centrality as well
+# of 0.9126008.
 
 # ===================================================
 # Question 2: Has the correlation changed over time?
@@ -531,3 +539,16 @@ gt_table_of_nodes_metrics <- nodes_metrics %>%
 gt_table_of_nodes_metrics
 
 #gtsave(data = gt_table_of_nodes_metrics, filename = "node_metrics_table.png", path = "/path/where/you/want/the/image")
+
+energy_residual_mean <- xts(rowMeans(resid_xts[, energy], na.rm = TRUE),
+                         order.by = index(resid_xts))
+mining_residual_mean <- xts(rowMeans(resid_xts[, mining], na.rm = TRUE),
+                         order.by = index(resid_xts))
+
+plot(energy_residual_mean, type="l", col="red", 
+     main="Market-Neutral Mean of Returns: Energy vs Mining",
+     ylab="Residual Return")
+lines(mining_residual_mean, col="blue")
+
+legend("topright", legend=c("Energy (residual)", "Mining (residual)"),
+       col=c("red", "blue"), lty=1, cex=0.8)
