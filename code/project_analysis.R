@@ -4,10 +4,12 @@
 install.packages("igraph")
 install.packages("quantmod")
 install.packages("PerformanceAnalytics")
+install.packages("gt")
 library(igraph)
 library(quantmod)
 library(PerformanceAnalytics)
 library(dplyr)
+library(gt)
 
 tickers <- c(
   # Energy
@@ -26,6 +28,10 @@ safeGet <- function(t) {
            error=function(e) NULL)
 }
 results <- lapply(tickers, safeGet)
+
+# Pre-processing of data
+
+# removing data which are null
 available <- tickers[!sapply(results, is.null)]
 available
 
@@ -35,6 +41,18 @@ for (t in available) {
   data <- getSymbols(t, src="yahoo", auto.assign=FALSE, from="2010-01-01")
   prices[[t]] <- Ad(data)  # Adjusted Close
 }
+
+# remove tickers whose data starts after the date below since most companies have data from that date 
+# onwards and only a few do not.
+cutoff <- as.Date("2010-01-04")
+
+starts <- sapply(prices, function(x) start(x))
+tickers_before_cutoff <- names(starts[as.Date(starts) <= cutoff])
+prices <- prices[tickers_before_cutoff] 
+
+removed_tickers <- setdiff(names(starts), tickers_before_cutoff)
+cat("Removed tickers due to late start:\n")
+print(removed_tickers)
 
 # merging all prices into a big xts object according to the date
 all_prices <- do.call(merge, prices)
@@ -72,42 +90,15 @@ plot(energy_mean, main="Energy vs Mining Average Returns", col="red")
 lines(mining_mean, col="blue")
 legend("topright", legend=c("Energy", "Mining"), col=c("red","blue"), lty=1)
 
-
-# TRIAL 1
-# As of now, DO NOT RUN Trial 1 and instead RUN TRIAL 2. I did not remove it from the file just in case we 
-# need it for any reason in the future.
-
-cor(energy_mean, mining_mean)
-
-cor_mat <- cor(coredata(returns), use="pairwise.complete.obs")
-adj <- (abs(cor_mat) > 0.5) * cor_mat  # weight = corr (or 1)
-g <- graph_from_adjacency_matrix(adj, mode="undirected", weighted=TRUE, diag=FALSE)
-V(g)
-V(g)$sector <- ifelse(names(V(g)) %in% energy, "energy","mining")
-
-# centralities
-deg <- degree(g)
-deg
-eig <- eigen_centrality(g)$vector
-eig
-betw <- betweenness(g)
-betw
-
-V(g)$color <- ifelse(V(g)$sector == "energy", "tomato", "skyblue")
-plot(g,
-     vertex.label.cex = 0.8,
-     vertex.label.color = "black",
-     layout = layout_with_fr,
-     main = "Energy vs Mining Stock Correlation Network")
-
-comm <- cluster_louvain(g)
-
-#TRIAL 2
+# Creating correlation matrix and graph based on it
 
 cor(energy_mean, mining_mean)
 
 cor_mat <- cor(returns, use="pairwise.complete.obs")
 threshold <- 0.3
+
+# adjacency matrix based on correlation matrix with a threshold of 0.3 for an edge to exist between the 
+# 2 nodes
 adj <- (abs(cor_mat) > threshold) * cor_mat  # weight = corr (or 1)
 g <- graph_from_adjacency_matrix(adj, mode="undirected", weighted=TRUE, diag=FALSE)
 V(g)
@@ -147,7 +138,7 @@ nodes_with_attributes
 nodes_eigenvector_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$eigenvector_centrality),]
 nodes_eigenvector_centrality_descending
 
-# CNQ, WPM, PAAS, SU, and CVE have the highest eigenvector centralities which could indicate that they are 
+# WPM, PAAS, ABX, AEM, and K have the highest eigenvector centralities which could indicate that they are 
 # some of the most influential companies in this network.
 
 # degree of nodes in descending order
@@ -155,8 +146,6 @@ nodes_degree_descending <- nodes_with_attributes[order(-nodes_with_attributes$de
 nodes_degree_descending
 
 #SU, CNQ, CVE, IMO, and VET have the highest degrees, each with 15.
-
-#CNQ, SU, and CVE are part of both top 5 of eigenvector centrality and degree. This is a key finding.
 
 nodes_betweenness_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$betweenness_centrality),]
 nodes_betweenness_centrality_descending
@@ -168,65 +157,9 @@ nodes_closeness_centrality_descending
 
 #FM, LUN, PAAS, WPM, and CS have the highest closeness centralities.
 
-adjacency_matrix_edge_existing_or_not <- abs(cor_mat) > threshold
-energy_to_mining_edges <- sum(adjacency_matrix_edge_existing_or_not[energy, mining])
-total_possible_energy_to_mining_edges <- length(energy) * length(mining)
-
-energy_to_mining_edges
-total_possible_energy_to_mining_edges
-
-edge_density_between_sectors <- energy_to_mining_edges/total_possible_energy_to_mining_edges
-edge_density_between_sectors
-
-# So on a scale of 0 to 1, only 0.1948718 of edges between any energy company with any mining company 
-# exists. So this means that around 19.5% of the possible strong correlation edges between 2 companies 
-# of opposite sectors exist.
-
-cor_mat
-correlation_df <- as.data.frame(as.table(cor_mat), stringsAsFactors = FALSE)
-colnames(correlation_df)[3] <- "correlation_value"
-
-correlation_df
-#dropping the self correlations of companies
-correlation_df <- correlation_df[correlation_df$Var1 != correlation_df$Var2, ]
-
-#removing repeat pairs of same 2 nodes
-correlation_df <- correlation_df[apply(correlation_df, 1, function(node) node[1] < node[2]), ]
-
-#removing correlations = NA
-correlation_df <- correlation_df[!is.na(correlation_df$correlation_value), ]
-
-correlation_df
-
-# creating a companies data frame with the company name and the corresponding sector from the graph's 
-# vertices
-companies <- data.frame(
-  company = V(g)$name,
-  sector = V(g)$sector,
-  stringAsFactors = FALSE
-)
-
-correlation_df <- correlation_df %>%
-  left_join(companies %>% select(company, sector), by = c("Var1" = "company")) %>%
-  rename(sector1 = sector) %>%
-  left_join(companies %>% select(company, sector), by = c("Var2" = "company")) %>%
-  rename(sector2 = sector)
-
-energy_and_mining_correlations <- correlation_df %>%
-  filter(
-    (sector1 == "energy" & sector2 == "mining") |
-    (sector1 == "mining" & sector2 == "energy")
-  )
-
-energy_and_mining_correlations <- energy_and_mining_correlations %>%
-  arrange(desc(correlation_value))
-
-energy_and_mining_correlations
-
-# On printing energy_and_mining_correlations in descending order of correlation value, we can see that the
-# top 10 correlations are above 0.5 on the correlation scale of -1 to +1. This is a significant finding as
-# that is a good number of correlations between companies of opposite sectors that is above 0.5 with the
-# highest being 0.72.
+# ==========================================================================================
+# Question 1 - In Canada, do energy stocks significantly impact mining stocks or vice versa?
+# ==========================================================================================
 
 # Below code determines the degree each node has for nodes of the same sector and opposite sector
 # This will help us in answering our 1st research question, do energy companies stocks affect that of 
@@ -235,10 +168,6 @@ energy_and_mining_correlations
 
 # results storing the details of each node, including the same sector and opposite sector degree of each
 # node
-
-# ==========================================================================================
-# Question 1 - In Canada, do energy stocks significantly impact mining stocks or vice versa?
-# ==========================================================================================
 
 results <- data.frame( node = V(g)$name, sector = V(g)$sector, node_degree = degree(g), 
                        same_sector_degree = integer(vcount(g)), 
@@ -265,6 +194,9 @@ for(i in seq_len(vcount(g)))
 # printing results. notice how some of the nodes have higher degree in the opposite sector compared to 
 # their own sector.
 results
+
+V(g)$same_sector_degree <- results$same_sector_degree
+V(g)$opposite_sector_degree <- results$opposite_sector_degree
 
 # The energy companies which have a higher degree in the opposite sector are: FNV (0-10), FM (5-9), 
 # LUN (5-8), CCO (2-5), and CS (3-6). The numbers in the brackets are the degrees for same sector and 
@@ -362,12 +294,94 @@ for (nm in names(periods)) {
 }
 
 corr_results
-avg_pairwise_corr
+# correlation results by period: 2010-2014 was 0.5318579, 2015-2019 was 0.3410684, and 2020-2025 was 
+# 0.3803876.
 
-# ============================================================
-# Question 3: How interconnected are Canada’s energy and mining 
-# companies, and which companies are the most connected in the network?
-# ============================================================
+avg_pairwise_corr
+# average pairwise correlation results by period: 2010-2014 was 0.2178982, 2015-2019 was 0.1469825, and 
+# 2020-2025 was 0.2126215.
+
+# =================================================================================================
+# Question 3: How interconnected are Canada's mining and energy companies? Which companies are most
+# connected/influential in the network?
+# =================================================================================================
+
+adjacency_matrix_edge_existing_or_not <- abs(cor_mat) > threshold
+energy_to_mining_edges <- sum(adjacency_matrix_edge_existing_or_not[energy, mining])
+total_possible_energy_to_mining_edges <- length(energy) * length(mining)
+
+energy_to_mining_edges
+total_possible_energy_to_mining_edges
+
+edge_density_between_sectors <- energy_to_mining_edges/total_possible_energy_to_mining_edges
+edge_density_between_sectors
+
+# So on a scale of 0 to 1, only 0.2087912 of edges between any energy company with any mining company 
+# exists. So this means that around 20.9% of the possible strong correlation edges between 2 companies 
+# of opposite sectors exist.
+
+cor_mat
+correlation_df <- as.data.frame(as.table(cor_mat), stringsAsFactors = FALSE)
+colnames(correlation_df)[3] <- "correlation_value"
+
+correlation_df
+#dropping the self correlations of companies
+correlation_df <- correlation_df[correlation_df$Var1 != correlation_df$Var2, ]
+
+#removing repeat pairs of same 2 nodes
+correlation_df <- correlation_df[apply(correlation_df, 1, function(node) node[1] < node[2]), ]
+
+#removing correlations = NA
+correlation_df <- correlation_df[!is.na(correlation_df$correlation_value), ]
+
+correlation_df
+
+# creating a companies data frame with the company name and the corresponding sector from the graph's 
+# vertices
+companies <- data.frame(
+  company = V(g)$name,
+  sector = V(g)$sector,
+  stringAsFactors = FALSE
+)
+
+correlation_df <- correlation_df %>%
+  left_join(companies %>% select(company, sector), by = c("Var1" = "company")) %>%
+  rename(sector1 = sector) %>%
+  left_join(companies %>% select(company, sector), by = c("Var2" = "company")) %>%
+  rename(sector2 = sector)
+
+# getting only correlations between 2 companies of opposite sectors
+energy_and_mining_correlations <- correlation_df %>%
+  filter(
+    (sector1 == "energy" & sector2 == "mining") |
+      (sector1 == "mining" & sector2 == "energy")
+  )
+
+energy_and_mining_correlations <- energy_and_mining_correlations %>%
+  arrange(desc(correlation_value))
+
+energy_and_mining_correlations
+
+# On printing energy_and_mining_correlations in descending order of correlation value, we can see that the
+# top 10 correlations are above 0.5 on the correlation scale of -1 to +1. This is a significant finding as
+# that is a good number of correlations between companies of opposite sectors that is above 0.5 with the
+# highest being 0.72.
+
+pagerank_centrality <- page.rank(g)$vector
+pagerank_centrality
+
+V(g)$pagerank_centrality <- pagerank_centrality
+
+nodes_with_attributes <- as.data.frame(vertex_attr(g))
+nodes_with_attributes
+
+nodes_pagerank_centrality_descending <- nodes_with_attributes[order(-nodes_with_attributes$pagerank_centrality),]
+nodes_pagerank_centrality_descending
+
+# The top 5 nodes by pagerank centrality are CNQ, SU, CVE, VET, and IMO. This shows their 
+# importance/influence in the network. WPM, PAAS, ABX, AEM, and K were the nodes with the 
+# highest eigenvector centrality. So there are no common nodes in the two lists. This shows 
+# that they are separately considered important by two different types of centrality. 
 
 # Average degree
 deg_vec <- degree(g)
@@ -410,10 +424,15 @@ mkt_data <- getSymbols("^GSPTSE",
 mkt_prices <- Ad(mkt_data)
 mkt_ret <- na.omit(Return.calculate(mkt_prices))
 
-# align dates between stock returns and market returns
-common_dates <- intersect(index(returns), index(mkt_ret))
-returns_aligned <- returns[common_dates, ]
-mkt_ret_aligned <- mkt_ret[common_dates, 1]
+# Merge returns and market returns, keeping only dates that exist in both
+aligned_data <- merge(returns, mkt_ret, join="inner")  
+
+# Extract returns and market separately
+returns_aligned <- aligned_data[, colnames(returns)]
+mkt_ret_aligned <- aligned_data[, colnames(mkt_ret)]
+
+# Use the row index of returns_aligned as the proper time vector
+aligned_dates <- index(returns_aligned)
 
 # Step 2. regress each stock on the market and keep residuals
 resid_mat <- matrix(NA_real_,
@@ -421,7 +440,6 @@ resid_mat <- matrix(NA_real_,
                     ncol = ncol(returns_aligned))
 
 colnames(resid_mat) <- colnames(returns_aligned)
-rownames(resid_mat) <- common_dates
 
 for (j in seq_len(ncol(returns_aligned))) {
   y <- as.numeric(returns_aligned[, j])
@@ -431,7 +449,7 @@ for (j in seq_len(ncol(returns_aligned))) {
   resid_mat[, j] <- residuals(fit)   # store error (idiosyncratic return)
 }
 
-resid_xts <- xts::xts(resid_mat, order.by = common_dates)
+resid_xts <- xts::xts(resid_mat, order.by = aligned_dates)
 
 # Step 3. build a new correlation network from residuals
 cor_resid <- cor(resid_xts, use = "pairwise.complete.obs")
@@ -468,8 +486,12 @@ par(mfrow = c(1, 1))
 cat("Original edges:", gsize(g), "\n")
 cat("Residual edges:", gsize(g_resid), "\n")
 
+# Original edges = 159, residual edges = 87
+
 cat("Original average degree:", mean(degree(g)), "\n")
 cat("Residual average degree:", mean(degree(g_resid)), "\n")
+
+# Original average degree = 11.77778, residual average degree = 6.444444
 
 mod_orig  <- cluster_louvain(g)
 mod_resid <- cluster_louvain(g_resid)
@@ -477,3 +499,35 @@ mod_resid <- cluster_louvain(g_resid)
 cat("Original modularity:", modularity(mod_orig), "\n")
 cat("Residual modularity:", modularity(mod_resid), "\n")
 
+# Original modularity = 0.4708674, residual modularity = 0.4441319
+
+
+# Overall Results of the Project's analysis
+
+nodes_metrics <- data.frame(
+  Ticker = V(g)$name,
+  Sector = V(g)$sector,
+  Degree = V(g)$degree,
+  SameSectorDegreeCount = V(g)$same_sector_degree,
+  OppositeSectorDegreeCount = V(g)$opposite_sector_degree,
+  EigenvectorCentrality = round(V(g)$eigenvector_centrality, 4),
+  PagerankCentrality = round(V(g)$pagerank_centrality, 4)
+)
+
+gt_table_of_nodes_metrics <- nodes_metrics %>%
+  gt() %>%
+  cols_width(
+   everything() ~ px(120)
+  ) %>%
+  tab_options(
+    table.border.top.style = "solid",
+    table.border.bottom.style = "solid",
+    table_body.hlines.style = "solid",
+    table_body.vlines.style = "solid",
+    table.width = pct(100), 
+    table.font.size = px(10)
+  )
+
+gt_table_of_nodes_metrics
+
+#gtsave(data = gt_table_of_nodes_metrics, filename = "node_metrics_table.png", path = "/path/where/you/want/the/image")
