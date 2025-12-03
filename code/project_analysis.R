@@ -118,19 +118,23 @@ legend("topright",
        pch = 19,
        pt.cex = 1.5)
 
+# Attributes of the nodes 
+
+# Degree of nodes
 degree_of_nodes <- degree(g)
 V(g)$degree <- degree_of_nodes
 cat("Degree of nodes: ", degree_of_nodes)
 
-# computing eigenvector centrality and storing it as an attribute
+# Eigenvector centrality of the nodes
 eigenvector_centrality <- eigen_centrality(g)$vector
 cat("Eigenvector centrality of nodes: ", eigenvector_centrality)
 V(g)$eigenvector_centrality <- eigenvector_centrality
 
-# Betweenness centrality of the nodes in descending order
+# Betweenness centrality of the nodes
 betweenness_centrality <- betweenness(g)
 V(g)$betweenness_centrality <- betweenness_centrality
 
+# Closeness centrality of the nodes
 closeness_centrality <- closeness(g)
 V(g)$closeness_centrality <- closeness_centrality
 
