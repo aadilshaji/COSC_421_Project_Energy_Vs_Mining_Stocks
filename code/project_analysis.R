@@ -523,7 +523,8 @@ nodes_metrics <- data.frame(
   SameSectorDegreeCount = V(g)$same_sector_degree,
   OppositeSectorDegreeCount = V(g)$opposite_sector_degree,
   EigenvectorCentrality = round(V(g)$eigenvector_centrality, 4),
-  PagerankCentrality = round(V(g)$pagerank_centrality, 4)
+  PagerankCentrality = round(V(g)$pagerank_centrality, 4),
+  BetweennessCentrality = V(g)$betweenness_centrality
 )
 
 gt_table_of_nodes_metrics <- nodes_metrics %>%
@@ -543,6 +544,7 @@ gt_table_of_nodes_metrics <- nodes_metrics %>%
 gt_table_of_nodes_metrics
 
 #gtsave(data = gt_table_of_nodes_metrics, filename = "node_metrics_table.png", path = "/path/where/you/want/the/image")
+gtsave(data = gt_table_of_nodes_metrics, filename = "node_metrics_table.png", path = "/Users/aadilshaji/Desktop/University/Studies/5th year/Term 1 Winter/COSC 421/Project")
 
 energy_residual_mean <- xts(rowMeans(resid_xts[, energy], na.rm = TRUE),
                          order.by = index(resid_xts))
