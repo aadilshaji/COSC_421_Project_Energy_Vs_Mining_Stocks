@@ -406,6 +406,7 @@ cat("Clustering coefficient:", global_clustering_coef, "\n")
 
 # K-core
 kcore_index <- coreness(g)
+V(g)$kcore <- kcore_index
 
 node_stats <- data.frame(
   sector                  = V(g)$sector,
@@ -513,8 +514,54 @@ cat("Residual modularity:", modularity(mod_resid), "\n")
 
 # Original modularity = 0.4708674, residual modularity = 0.4441319
 
+q4_summary_table = data.frame(
+  Metric = c("Number of edges", "Average degree", "Modularity"),
+  Original = c(
+    gsize(g),
+    mean(degree(g)),
+    modularity(mod_orig)
+  ),
+  Residual = c(
+    gsize(g_resid),
+    mean(degree(g_resid)),
+    modularity(mod_resid)
+  )
+)
 
+gt_q4_summary_table <- q4_summary_table %>%
+  gt() %>%
+  fmt_number(
+    columns = c(Original, Residual),
+    rows = Metric == "Number of edges",
+    decimals = 0
+  ) %>%
+  fmt_number(
+    columns = c(Original, Residual),
+    rows = Metric == "Average degree",
+    decimals = 2
+  ) %>%
+  fmt_number(
+    columns = c(Original, Residual),
+    rows = Metric == "Modularity",
+    decimals = 4
+  ) %>%
+  tab_options(
+    table.border.top.style = "solid",
+    table.border.bottom.style = "solid",
+    table_body.hlines.style = "solid",
+    table_body.vlines.style = "solid",
+    table.width = pct(100), 
+    table.font.size = px(10)
+  )
+
+gt_q4_summary_table
+
+#gtsave(data = gt_q4_summary_table, filename = "q4_summary_table.png", path = "/path/where/you/want/to/store/table")
+
+
+# =========================================
 # Overall Results of the Project's analysis
+# =========================================
 
 nodes_metrics <- data.frame(
   Ticker = V(g)$name,
@@ -524,7 +571,8 @@ nodes_metrics <- data.frame(
   OppositeSectorDegreeCount = V(g)$opposite_sector_degree,
   EigenvectorCentrality = round(V(g)$eigenvector_centrality, 4),
   PagerankCentrality = round(V(g)$pagerank_centrality, 4),
-  BetweennessCentrality = V(g)$betweenness_centrality
+  BetweennessCentrality = V(g)$betweenness_centrality,
+  KCore = V(g)$kcore
 )
 
 gt_table_of_nodes_metrics <- nodes_metrics %>%
@@ -537,14 +585,16 @@ gt_table_of_nodes_metrics <- nodes_metrics %>%
     table.border.bottom.style = "solid",
     table_body.hlines.style = "solid",
     table_body.vlines.style = "solid",
-    table.width = pct(100), 
+    table.width = pct(80), 
     table.font.size = px(10)
   )
 
 gt_table_of_nodes_metrics
 
-#gtsave(data = gt_table_of_nodes_metrics, filename = "node_metrics_table.png", path = "/path/where/you/want/the/image")
-gtsave(data = gt_table_of_nodes_metrics, filename = "node_metrics_table.png", path = "/Users/aadilshaji/Desktop/University/Studies/5th year/Term 1 Winter/COSC 421/Project")
+#gtsave(data = gt_table_of_nodes_metrics, filename = "node_metrics_table.png", 
+#        path = "/path/where/you/want/the/image",
+#        vwidth = 2000, vheight = 1200)
+
 
 energy_residual_mean <- xts(rowMeans(resid_xts[, energy], na.rm = TRUE),
                          order.by = index(resid_xts))
