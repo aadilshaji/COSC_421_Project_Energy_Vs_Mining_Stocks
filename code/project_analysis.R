@@ -86,9 +86,11 @@ energy_mean <- xts(rowMeans(returns[, energy], na.rm = TRUE), order.by = index(r
 mining_mean <- xts(rowMeans(returns[, mining], na.rm = TRUE), order.by = index(returns))
 
 # plot for energy and mining means
+par(mar = c(5, 4, 4, 6))
 plot(energy_mean, main="Energy vs Mining Average Returns", col="red")
 lines(mining_mean, col="blue")
-legend("topright", legend=c("Energy", "Mining"), col=c("red","blue"), lty=1)
+legend("topright", inset = c(0, 0),
+       legend=c("Energy", "Mining"), col=c("red","blue"), lty=1)
 
 # Creating correlation matrix and graph based on it
 
@@ -108,22 +110,31 @@ V(g)$color <- ifelse(V(g)$sector == "energy", "tomato", "skyblue")
 plot(g,
      vertex.label.cex = 0.8,
      vertex.label.color = "black",
-     layout = layout_with_fr,
+     layout = layout_with_kk,
      main = "Energy vs Mining Stock Correlation Network")
+legend("topright", 
+       legend = c("Energy", "Mining"),
+       col = c("Tomato", "Skyblue"),
+       pch = 19,
+       pt.cex = 1.5)
 
+# Attributes of the nodes 
+
+# Degree of nodes
 degree_of_nodes <- degree(g)
 V(g)$degree <- degree_of_nodes
 cat("Degree of nodes: ", degree_of_nodes)
 
-# computing eigenvector centrality and storing it as an attribute
+# Eigenvector centrality of the nodes
 eigenvector_centrality <- eigen_centrality(g)$vector
 cat("Eigenvector centrality of nodes: ", eigenvector_centrality)
 V(g)$eigenvector_centrality <- eigenvector_centrality
 
-# Betweenness centrality of the nodes in descending order
+# Betweenness centrality of the nodes
 betweenness_centrality <- betweenness(g)
 V(g)$betweenness_centrality <- betweenness_centrality
 
+# Closeness centrality of the nodes
 closeness_centrality <- closeness(g)
 V(g)$closeness_centrality <- closeness_centrality
 
@@ -200,7 +211,8 @@ V(g)$opposite_sector_degree <- results$opposite_sector_degree
 
 # The energy companies which have a higher degree in the opposite sector are: FNV (0-10), FM (5-9), 
 # LUN (5-8), CCO (2-5), and CS (3-6). The numbers in the brackets are the degrees for same sector and 
-# opposite sectors respectively.
+# opposite sectors respectively. Among these 5 nodes, FNV has quite a high eigenvector centrality as well
+# of 0.9126008.
 
 # ===================================================
 # Question 2: Has the correlation changed over time?
@@ -394,6 +406,7 @@ cat("Clustering coefficient:", global_clustering_coef, "\n")
 
 # K-core
 kcore_index <- coreness(g)
+V(g)$kcore <- kcore_index
 
 node_stats <- data.frame(
   sector                  = V(g)$sector,
@@ -501,8 +514,54 @@ cat("Residual modularity:", modularity(mod_resid), "\n")
 
 # Original modularity = 0.4708674, residual modularity = 0.4441319
 
+q4_summary_table = data.frame(
+  Metric = c("Number of edges", "Average degree", "Modularity"),
+  Original = c(
+    gsize(g),
+    mean(degree(g)),
+    modularity(mod_orig)
+  ),
+  Residual = c(
+    gsize(g_resid),
+    mean(degree(g_resid)),
+    modularity(mod_resid)
+  )
+)
 
+gt_q4_summary_table <- q4_summary_table %>%
+  gt() %>%
+  fmt_number(
+    columns = c(Original, Residual),
+    rows = Metric == "Number of edges",
+    decimals = 0
+  ) %>%
+  fmt_number(
+    columns = c(Original, Residual),
+    rows = Metric == "Average degree",
+    decimals = 2
+  ) %>%
+  fmt_number(
+    columns = c(Original, Residual),
+    rows = Metric == "Modularity",
+    decimals = 4
+  ) %>%
+  tab_options(
+    table.border.top.style = "solid",
+    table.border.bottom.style = "solid",
+    table_body.hlines.style = "solid",
+    table_body.vlines.style = "solid",
+    table.width = pct(100), 
+    table.font.size = px(10)
+  )
+
+gt_q4_summary_table
+
+#gtsave(data = gt_q4_summary_table, filename = "q4_summary_table.png", path = "/path/where/you/want/to/store/table")
+
+
+# =========================================
 # Overall Results of the Project's analysis
+# =========================================
 
 nodes_metrics <- data.frame(
   Ticker = V(g)$name,
@@ -511,7 +570,9 @@ nodes_metrics <- data.frame(
   SameSectorDegreeCount = V(g)$same_sector_degree,
   OppositeSectorDegreeCount = V(g)$opposite_sector_degree,
   EigenvectorCentrality = round(V(g)$eigenvector_centrality, 4),
-  PagerankCentrality = round(V(g)$pagerank_centrality, 4)
+  PagerankCentrality = round(V(g)$pagerank_centrality, 4),
+  BetweennessCentrality = V(g)$betweenness_centrality,
+  KCore = V(g)$kcore
 )
 
 gt_table_of_nodes_metrics <- nodes_metrics %>%
@@ -524,10 +585,26 @@ gt_table_of_nodes_metrics <- nodes_metrics %>%
     table.border.bottom.style = "solid",
     table_body.hlines.style = "solid",
     table_body.vlines.style = "solid",
-    table.width = pct(100), 
+    table.width = pct(80), 
     table.font.size = px(10)
   )
 
 gt_table_of_nodes_metrics
 
-#gtsave(data = gt_table_of_nodes_metrics, filename = "node_metrics_table.png", path = "/path/where/you/want/the/image")
+#gtsave(data = gt_table_of_nodes_metrics, filename = "node_metrics_table.png", 
+#        path = "/path/where/you/want/the/image",
+#        vwidth = 2000, vheight = 1200)
+
+
+energy_residual_mean <- xts(rowMeans(resid_xts[, energy], na.rm = TRUE),
+                         order.by = index(resid_xts))
+mining_residual_mean <- xts(rowMeans(resid_xts[, mining], na.rm = TRUE),
+                         order.by = index(resid_xts))
+
+plot(energy_residual_mean, type="l", col="red", 
+     main="Market-Neutral Mean of Returns: Energy vs Mining",
+     ylab="Residual Return")
+lines(mining_residual_mean, col="blue")
+
+legend("topright", legend=c("Energy (residual)", "Mining (residual)"),
+       col=c("red", "blue"), lty=1, cex=0.8)
